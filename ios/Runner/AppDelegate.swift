@@ -14,26 +14,39 @@ import Speech
     
     let controller: FlutterViewController = window?.rootViewController as! FlutterViewController
     let batteryChannel = FlutterMethodChannel(name: "samples.flutter.dev/battery", binaryMessenger: controller.binaryMessenger)
-    
+//    var jsExecutable: JSExecutable = JSExecutable(jsString: "function simpleFunction(){var hello = \" Hello World\"; var i = 10; while(i>0){ myconsole(i+' value'); i--;} return 'true'; }")
+//    var jsStringRec: String
     
     batteryChannel.setMethodCallHandler({[weak self] (call: FlutterMethodCall, result: FlutterResult) -> Void in
         
-        guard call.method == "getBatteryLevel" else {
-            
-            result(500)
-            return
-        }
         
-        self?.reciveBatteryLevel(result: result)
+        switch call.method {
+            case "setJsString":
+                let jsStringRecieved = call.arguments as! String
+//                jsExecutable = JSExecutable(jsString: jsStringRecieved)
+                self?.reciveJsString(jsString: jsStringRecieved, result: result)
+            case "getBatteryLevel":
+                self?.reciveBatteryLevel(result: result)
+            case "stopJSExecution":
+                let emptyStringRecieved = call.arguments as! String
+                self?.stopJsExecution(emtyString: emptyStringRecieved, result: result)
+            default:
+                result(FlutterMethodNotImplemented)
+        }
+//        guard call.method == "getBatteryLevel" else {
+//
+//            result(500)
+//            return
+//        }
+        
+        
     })
     
+//    "function simpleFunction(){var hello = \" Hello World\"; var i = 10; while(i>0){ myconsole(i+' value'); i--;} return 'true'; }"
     
-    let handler = SpeechRecognitionStreamHandler()
 //    let speechController = SpeechController()
     
-    let eventChannelName = "rahatDaBoss.testapp.io/speech"
-    let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: controller.binaryMessenger)
-    eventChannel.setStreamHandler(handler)
+
     
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -50,6 +63,38 @@ import Speech
             result(Int(device.batteryLevel * 100))
         }
     }
+    
+    private func reciveJsString(jsString: String, result: FlutterResult){
+        let controller: FlutterViewController = window?.rootViewController as! FlutterViewController
+        
+        let jsStringNew = "function simpleFunction(){" + jsString + " return 'true'; }"
+        
+        let handler = SpeechRecognitionStreamHandler.shared(jsString: jsStringNew)
+        let eventChannelName = "rahatDaBoss.testapp.io/speech"
+        let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: controller.binaryMessenger)
+        eventChannel.setStreamHandler(handler)
+        
+        NSLog("\n" + jsString)
+        result("jsStringSet: -> ")
+    }
+    
+    private func stopJsExecution(emtyString: String, result: FlutterResult){
+        let controller: FlutterViewController = window?.rootViewController as! FlutterViewController
+        
+        let handler = SpeechRecognitionStreamHandler.shared(jsString: emtyString)
+        let eventChannelName = "rahatDaBoss.testapp.io/speech"
+        let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: controller.binaryMessenger)
+        eventChannel.setStreamHandler(handler)
+        
+        result("jsStringSet: -> ")
+    }
 }
 
 
+class JSExecutable {
+    let jsString: String
+    
+    init(jsString:String) {
+        self.jsString = jsString
+    }
+}

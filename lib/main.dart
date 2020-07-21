@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:zefyr/zefyr.dart';
 
 typedef void Listener(dynamic msg);
 typedef void CancelListening();
@@ -57,20 +60,59 @@ class _MyHomePageState extends State<MyHomePage> {
   static const platForm = const MethodChannel('samples.flutter.dev/battery');
   String _batteryLevel = 'Unknown battery level';
   List<String> res = [];
+  TextEditingController jsInputController = TextEditingController();
+  StreamSubscription subscription;
+  final String jsString = "var hello = \" Hello World\"; var i = 10; while(i>0){ myconsole(i+' value'); i--;}";
+
+  static final jsInputMethodChannel = "jsCode.String.input";
+  final jsStringInputMethod = MethodChannel(jsInputMethodChannel);
 
   final eventChannel = EventChannel("rahatDaBoss.testapp.io/speech");
-  
+  final jsEventChannel = EventChannel("rahatdaboss.testApp.io/jScript");
+  Function subscriptionCallback;
 
+  CancelListening startEvaluation(String jsCode){
+    var subscription = this.jsEventChannel.receiveBroadcastStream().listen(jsResultHandler, onError:jsErrorHandler);
 
-  CancelListening startListening(){
-    var subscription = this.eventChannel.receiveBroadcastStream().listen(speechResultHandler, onError: speechResultErrorHandler);
-
-    return (){subscription.cancel();};
+    return (){
+      subscription.cancel();
+    };
   }
 
+  jsResultHandler(dynamic event){
+    final String normalizedEvent = event.toLowerCase();
+    print("Hello this is an event js");
+    print(normalizedEvent);
+    setState(() {
+      res.add(normalizedEvent);
+    });
+
+  }
+
+  startEditor() async {
+    await this.jsStringInputMethod.invokeListMethod("start", jsString);
+  }
+  @override
+  void initState() { 
+    // subscription = this.eventChannel.receiveBroadcastStream().listen(speechResultHandler, onError: speechResultErrorHandler);
+    // await Future.delayed(Duration(seconds: 3 ));
+    // subscriptionCallback =  subscription;
+    // startEditor();
+    super.initState();
+    
+  }
+  jsErrorHandler(dynamic error) => print("Recived Error ${error.message}");
+
+  Function startListening() {
+    subscription = this.eventChannel.receiveBroadcastStream().listen(speechResultHandler, onError: speechResultErrorHandler);
+  }
+
+  void cancelListening() async {
+
+    final result = await platForm.invokeMethod('stopJSExecution', "");
+  }
   speechResultHandler(dynamic event){
     final String normalizedEvent = event.toLowerCase();
-    print("Hello this is an event");
     print(normalizedEvent);
     setState(() {
       res.add(normalizedEvent);
@@ -82,19 +124,24 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _getBatteryLevel() async {
     String batteryLevel;
-
+    print(jsInputController.text);
     try{
       final String argument = 'Hello';
 
-      final int result = await platForm.invokeMethod('getBatteryLevel', argument);
+      print(jsInputController.text);
+      print(jsInputController.text.replaceAll(RegExp(r'console.log'), 'myconsole'));
+      // return true;
+      // final int result = await platForm.invokeMethod('getBatteryLevel', argument);
+      final result = await platForm.invokeMethod('setJsString', jsInputController.text.replaceAll(RegExp(r'console.log'), 'myconsole'));
+      print(result);
       batteryLevel = 'Battery Level at $result % .';
     } on PlatformException catch(err){
       batteryLevel = 'Failed to get battery level: ${err.message}';
     }
 
-    setState(() {
-      _batteryLevel = batteryLevel;
-    });
+    // setState(() {
+    //   _batteryLevel = batteryLevel;
+    // });
   }
 
   void _incrementCounter() {
@@ -122,43 +169,52 @@ class _MyHomePageState extends State<MyHomePage> {
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      body: Container(
+        padding: EdgeInsets.all(16),
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'Get Batery level',
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children:[
+            Expanded(
+                child: TextField(
+                controller: jsInputController..text = "var hello = \" Hello World\"; var i = 10; while(i>0){ console.log(i+' value'); i--;}",
+                keyboardType: TextInputType.multiline,
+                maxLines: null,
+              ),
             ),
-            Text(
-              _batteryLevel,
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
+            Text("Js OUtput")
+          ]
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: (){
-          // _getBatteryLevel();
-          startListening();
-        },
-        child: Icon(Icons.battery_std),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: <Widget>[
+          FloatingActionButton(
+            onPressed: () async {
+              await _getBatteryLevel();
+              // await Future.delayed(Duration(seconds: 3));
+              startListening();
+            },
+            child: Icon(Icons.play_arrow),
+          ),
+          SizedBox(
+            height:10
+          ),
+          FloatingActionButton(
+            onPressed: () {
+              // print(subscriptionCallback.toString());
+              // subscriptionCallback.call();
+              // cancelListening();
+
+              print("Cancel button called");
+              print(subscription.toString());
+              subscription.cancel();
+            },
+            child: Icon(Icons.stop),
+          ),
+        ],
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
+
+  
 }
